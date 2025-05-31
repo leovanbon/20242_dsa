@@ -122,7 +122,7 @@ void* worstfit_malloc(size_t WANT){
 
 void* nextfit_malloc(size_t WANT){
     if(free_list==NULL) return NULL;
-    if(nextfit_sp=NULL) nextfit_sp=free_list;
+    if(nextfit_sp==NULL) nextfit_sp=free_list;
 
     MemoryBlock* cur = nextfit_sp;
     MemoryBlock* prev = NULL;
@@ -151,7 +151,7 @@ void* nextfit_malloc(size_t WANT){
         prev=cur;
         cur = cur->next ? cur->next : free_list;
 
-        if(cur=st) break;
+        if(cur==st) break;
     }
     return NULL;
 }
@@ -164,22 +164,118 @@ size_t powerup(size_t WANT) {
 }
 
 void* buddysystem_malloc(size_t WANT){
+    size_t RWANT = powerup(WANT);
     
+    MemoryBlock* cur = free_list;
+    MemoryBlock* prev = NULL;
+
+    while(cur != NULL){
+        if (cur->size >= RWANT) break;
+        prev = cur;
+        cur = cur->next;
+    }
+
+    
+    while(cur->size /2 >= RWANT){
+        size_t half = cur->size /2;
+        
+        MemoryBlock* nicebuddy = (MemoryBlock*)malloc(sizeof(MemoryBlock));
+        nicebuddy->start_addr=(char*)cur->start_addr +half;
+        nicebuddy->size=half;
+        nicebuddy->next=cur->next;
+
+        cur->size=half;
+        cur->next=nicebuddy;
+    }
+
+    void* alloc = cur -> start_addr;
+
+    if(prev==NULL) free_list = cur -> next;
+    else prev-> next = cur-> next;
+    
+    free(cur);
+    return alloc;
 }
 
-void free_mem(void* addr, size_t WANT){
 
+void free_mem(void* addr, size_t size) {
+
+    MemoryBlock* new_block = (MemoryBlock*)malloc(sizeof(MemoryBlock));
+    new_block->start_addr = addr;
+    new_block->size = size;
+    new_block->next = NULL;
+
+
+    if (free_list == NULL || addr < free_list->start_addr) {
+        new_block->next = free_list;
+        free_list = new_block;
+    } else {
+
+
+        MemoryBlock* current = free_list;
+        while (current->next != NULL && current->next->start_addr < addr) {
+            current = current->next;
+        }
+        new_block->next = current->next;
+        current->next = new_block;
+    }
+
+
+    if (new_block->next && 
+        (char*)new_block->start_addr + new_block->size == new_block->next->start_addr) {
+        new_block->size += new_block->next->size;
+        MemoryBlock* temp = new_block->next;
+        new_block->next = new_block->next->next;
+        free(temp);
+    }
+
+    if (free_list != new_block) {
+        MemoryBlock* current = free_list;
+        while (current->next != NULL && current->next != new_block) {
+            current = current->next;
+        }
+
+        if ((char*)current->start_addr + current->size == new_block->start_addr) {
+            current->size += new_block->size;
+            current->next = new_block->next;
+            free(new_block);
+        }
+    }
 }
 
 
 
 int main(){
-    void* memory_pool = malloc(2048);
-    init_mem(memory_pool, 2048);
-
-    void* ptr1 = firstfit_malloc(256);
-    printf("Allocated 256 bytes at %p\n", ptr1);
+    void* memory_pool = malloc(4096);
+    init_mem(memory_pool, 4096);
+    printf("Sau khi khoi tao:\n");
     print_free_list();
+
+    void* p1 = firstfit_malloc(256); //
+    printf("Cap phat 256 (first fit) --> %p\n", p1);
+    print_free_list();
+
+    void* p2 = bestfit_malloc(128);
+    printf("Cap phat 128 (best fit) --> %p\n", p2);
+    print_free_list();
+
+    free_mem(p1, 256);
+    printf("Giai phong 256 --> %p\n", p1);
+    print_free_list();
+
+    void* p3 = nextfit_malloc(512); //
+    printf("Cap phat 512 (next fit) --> %p\n", p3);
+    print_free_list();
+
+    void* p4 = worstfit_malloc(300);
+    printf("Cap phat 300 (worst fit) --> %p\n", p4);
+    print_free_list();
+
+    free_mem(p3, 512);
+    printf("Giai phong 512 --> %p\n", p3);
+    print_free_list();
+
+
 
     return 0;
 }
